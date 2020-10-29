@@ -9,7 +9,7 @@ OBJ = $(patsubst %.c, ${DIR_OBJ}/%.o, $(notdir $(SRC)))
 CC = gcc
 CFLAGS = -g -Wall -I$(DIR_INC)
 
-TARGET = npshell
+TARGET = np_simple
 
 ${TARGET}:$(OBJ)
 	$(CC) -o $@ $^

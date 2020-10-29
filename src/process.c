@@ -5,6 +5,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
+#include "server.h"
 #include "process.h"
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
@@ -230,6 +231,10 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 
 void ExeExit(char** process)
 {
+	int clientfd = GetClientfd();	
+
+	if (clientfd > 0) close(clientfd);
+
 	exit(EXIT_SUCCESS);
 }
 
@@ -374,7 +379,7 @@ void ExeWait(pid_t pid)
 
 void DoExecvp(char* process, char** arg)
 {
-	if(execvp(process, arg) == -1)
+	if (execvp(process, arg) == -1)
 	{
 		fprintf(stderr, "Unknown command: [%s].\n", process);
 		exit(EXIT_FAILURE);
