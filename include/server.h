@@ -1,5 +1,8 @@
 #pragma once
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 struct serviceTable{
 	int clientMax;
 	int clientNum;
@@ -10,8 +13,11 @@ struct serviceTable{
 int ExeServer1(int port);
 void ExeServer2(int port);
 
-void ExeServer2Command(int clientfd);
-void SendLoginInfo(int clientfd);
+void ExeServer2Command();
+void ExeExitService();
+
+void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo);
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen);
 
+int GetServerNum();
 int GetClientfd();

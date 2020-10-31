@@ -189,6 +189,7 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 	if (strcmp(process[0], "exit") == 0)
 	{
 		ExeExit();
+		return;
 	}
 	else if (strcmp(process[0], "printenv") == 0)
 	{
@@ -232,10 +233,12 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 void ExeExit(char** process)
 {
 	int clientfd = GetClientfd();	
+	int serverNum = GetServerNum();
 
 	if (clientfd > 0) close(clientfd);
 
-	exit(EXIT_SUCCESS);
+	if (serverNum == 1) exit(EXIT_SUCCESS);
+	else if (serverNum == 2) ExeExitService();
 }
 
 void ExeSetEnv(char** process)

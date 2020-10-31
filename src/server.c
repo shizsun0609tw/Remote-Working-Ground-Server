@@ -11,8 +11,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
 
+int serverNum = 0;
 int clientfd = 0;
 struct serviceTable clientTable = {
 	.clientMax = 60,
@@ -23,9 +25,11 @@ int ExeServer1(int port)
 {
 	int sockfd = 0, forClientSockfd = 0;
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	serverNum = 1;
 
 	printf("Start server1 at port:%d\n", port);
+
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
 	if (sockfd == -1) printf("create socket failed\n");
 
@@ -68,13 +72,14 @@ int ExeServer1(int port)
 void ExeServer2(int port)
 {
 	int sockfd = 0, forClientSockfd = 0, sockMax = 0;
-	static int init = 0;
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-	if (init == 0) printf("Start server2 at port:%d\n", port);
-
-	init = 1;
+	if (serverNum == 0)
+	{
+		serverNum = 2;
+		printf("Start server2 at port:%d\n", port);
+	}
 
 	if (sockfd == -1) printf("create socket failed\n");
 
@@ -112,11 +117,12 @@ void ExeServer2(int port)
 			if (forClientSockfd < 0) printf("accept error\n");
 			else
 			{
+				
 				printf("-----------------------------------------------------------\n");
 				printf("                        New user login                     \n");	
 				printf("-----------------------------------------------------------\n");
 
-				SendLoginInfo(forClientSockfd);
+				SendLoginInfo(forClientSockfd, clientInfo);
 
 				clientTable.clientfds[clientTable.clientNum] = forClientSockfd;
 				clientTable.clientNum++;
@@ -126,20 +132,25 @@ void ExeServer2(int port)
 		for(int i = 0; i < clientTable.clientNum; ++i)
 		{
 			if (FD_ISSET(clientTable.clientfds[i], &sockSet))
-			{
+			{	
+				clientfd = clientTable.clientfds[i];	
+	
+				int fd_err = dup(STDERR_FILENO);
+				int fd_out = dup(STDOUT_FILENO);
+
 				dup2(clientTable.clientfds[i], STDERR_FILENO);
 				dup2(clientTable.clientfds[i], STDOUT_FILENO);
 			
-				ExeServer2Command(clientTable.clientfds[i]);
+				ExeServer2Command();
 
-				dup2(STDERR_FILENO, clientTable.clientfds[i]);
-				dup2(STDOUT_FILENO, clientTable.clientfds[i]);
+				dup2(fd_err, STDERR_FILENO);
+				dup2(fd_out, STDOUT_FILENO);
 			}
 		}
 	}
 }
 
-void ExeServer2Command(int clientfd)
+void ExeServer2Command()
 {
 	int bufferLen = 16000;
 	struct command input;
@@ -162,9 +173,39 @@ void ExeServer2Command(int clientfd)
 	free(buffer);	
 }
 
-void SendLoginInfo(int clientfd)
+void ExeExitService()
 {
+	int label = 0;
+
+	for (int i = 0; i < clientTable.clientNum - 1; ++i)
+	{
+		if (clientTable.clientfds[i] == clientfd) label = 1;
+		
+		if (label == 1) clientTable.clientfds[i] = clientTable.clientfds[i + 1];
+	}
+
+	clientTable.clientNum--;
+}
+
+void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
+{
+	char ipv4[20];
+
+	inet_ntop(AF_INET, &clientInfo.sin_addr, ipv4, sizeof(struct sockaddr));
+
+	int fd_old = dup(STDOUT_FILENO);
+
+	dup2(clientfd, STDOUT_FILENO);
+
+	printf("**************************************\n"
+	       "** Welcom to the information server **\n" 
+	       "**************************************\n");
+
+	printf("*** User '(no name)' entered from %s:%d ***\n", ipv4, ntohs(clientInfo.sin_port));
+	
 	send(clientfd, "% ", sizeof("% "), 0);
+
+	dup2(fd_old, STDOUT_FILENO);	
 }
 
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
@@ -173,6 +214,11 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
 
 	recv(clientfd, inputBuffer, sizeof(char) * bufferLen, 0);
 }	
+
+int GetServerNum()
+{
+	return serverNum;
+}
 
 int GetClientfd()
 {
