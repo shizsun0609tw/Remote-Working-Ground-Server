@@ -10,8 +10,14 @@ CC = gcc
 CFLAGS = -g -Wall -I$(DIR_INC)
 
 TARGET = np_simple
+TARGET2 = np_single_proc
+
+all:${TARGET} ${TARGET2}
 
 ${TARGET}:$(OBJ)
+	$(CC) -o $@ $^
+
+${TARGET2}:$(OBJ)
 	$(CC) -o $@ $^
 
 $(DIR_OBJ)/%.o: ${DIR_SRC}/%.c
