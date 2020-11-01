@@ -116,15 +116,16 @@ void ExeServer2(int port)
 			
 			if (forClientSockfd < 0) printf("accept error\n");
 			else
-			{
-				
+			{				
 				printf("-----------------------------------------------------------\n");
 				printf("                        New user login                     \n");	
 				printf("-----------------------------------------------------------\n");
-
+				printf("clientfd:%d\n", forClientSockfd);
 				SendLoginInfo(forClientSockfd, clientInfo);
 
 				clientTable.clientfds[clientTable.clientNum] = forClientSockfd;
+				clientTable.clientInfo[clientTable.clientNum] = clientInfo;
+				strcpy(clientTable.clientName[clientTable.clientNum], "no name");
 				clientTable.clientNum++;
 			}
 		}
@@ -177,11 +178,16 @@ void ExeExitService()
 {
 	int label = 0;
 
-	for (int i = 0; i < clientTable.clientNum - 1; ++i)
+	for (int i = 0; i < clientTable.clientNum; ++i)
 	{
 		if (clientTable.clientfds[i] == clientfd) label = 1;
 		
-		if (label == 1) clientTable.clientfds[i] = clientTable.clientfds[i + 1];
+		if (label == 1 && i + 1 < clientTable.clientNum) 
+		{
+			clientTable.clientfds[i] = clientTable.clientfds[i + 1];
+			clientTable.clientInfo[i] = clientTable.clientInfo[i + 1];
+			strcpy(clientTable.clientName[i], clientTable.clientName[i + 1]);
+		}
 	}
 
 	clientTable.clientNum--;
@@ -205,6 +211,15 @@ void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
 	
 	send(clientfd, "% ", sizeof("% "), 0);
 
+	for(int i = 0; i < clientTable.clientNum; ++i)
+	{
+		if (clientfd == clientTable.clientfds[i]) continue;
+			
+		dup2(clientTable.clientfds[i], STDOUT_FILENO);
+		
+		printf("*** User '(no name)' entered from %s:%d ***\n", ipv4, ntohs(clientInfo.sin_port));
+	}
+
 	dup2(fd_old, STDOUT_FILENO);	
 }
 
@@ -225,3 +240,22 @@ int GetClientfd()
 	return clientfd;
 }
 
+int GetClientNum()
+{
+	return clientTable.clientNum;
+}
+
+int* GetAllClientfd()
+{
+	return clientTable.clientfds;
+}
+
+char* GetClientName(int clientNum)
+{
+	return clientTable.clientName[clientNum];
+}
+
+struct sockaddr_in GetClientInfo(int clientNum)
+{
+	return clientTable.clientInfo[clientNum];
+}

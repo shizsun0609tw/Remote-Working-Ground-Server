@@ -7,6 +7,8 @@ struct serviceTable{
 	int clientMax;
 	int clientNum;
 	int clientfds[60];
+	char clientName[60][30];
+	struct sockaddr_in clientInfo[60];
 };
 
 // return client fd
@@ -21,3 +23,7 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen);
 
 int GetServerNum();
 int GetClientfd();
+int GetClientNum();
+int* GetAllClientfd();
+char* GetClientName(int clientNum);
+struct sockaddr_in GetClientInfo(int clientNum);

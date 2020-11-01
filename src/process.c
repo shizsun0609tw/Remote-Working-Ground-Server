@@ -4,9 +4,15 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include "server.h"
 #include "process.h"
+
+struct pipeTable numberPipeTable[60];
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
 {
@@ -21,27 +27,39 @@ void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
 	}
 }
 
+void FreePipeTable(struct pipeTable *numberPipeTable)
+{
+	for(int i = numberPipeTable->tableSize - 1; i >= 0; --i)
+	{
+		if (numberPipeTable->lineCountTable[i][0] != 0) close(numberPipeTable->lineCountTable[i][0]);
+		if (numberPipeTable->lineCountTable[i][1] != 0) close(numberPipeTable->lineCountTable[i][1]);
+		
+		free(numberPipeTable->lineCountTable[i]);
+	}
+	
+	free(numberPipeTable->lineCountTable);
+	numberPipeTable->tableSize = 0;
+}
+
 void Execute(struct command input)
 {
-	static int IsAlreadyInit = 0;
-	static struct pipeTable numberPipeTable;
 	char** process1 = NULL;
 	char* redirection = NULL;
 	char* separation = (char*)malloc(sizeof(char));
+	int clientfd = GetClientfd();
 	int numberPipe = 0;
 	int numberPipefd = 0;
 	int pastReadFd = 0;
 	int isHead = 1;
 
-	if (IsAlreadyInit == 0)
+	if (numberPipeTable[clientfd].tableSize == 0)
 	{
-		InitPipeTable(&numberPipeTable, 1001);
-		IsAlreadyInit = 1;
+		InitPipeTable(&(numberPipeTable[clientfd]), 1001);
 	}
 
 	process1 = CommandProcessing(&input, &separation, &redirection, &numberPipe);
 
-	UpdateNumberPipe(&numberPipeTable, &numberPipefd);
+	UpdateNumberPipe(&(numberPipeTable[clientfd]), &numberPipefd);
 	
 	while(input.currentCommandNumber != input.tokenNumber)
 	{
@@ -60,7 +78,7 @@ void Execute(struct command input)
 		
 	if (numberPipe > 0)
 	{	
-		ExeProcessNumberPipe(process1, pastReadFd, &numberPipeTable, numberPipefd, separation, numberPipe, isHead);
+		ExeProcessNumberPipe(process1, pastReadFd, &(numberPipeTable[clientfd]), numberPipefd, separation, numberPipe, isHead);
 	}
 	else 
 	{
@@ -186,26 +204,7 @@ void ExeSource(char** process)
 
 void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparation, int numberPipefd, char* redirection, int isHead, int isTail)
 {
-	if (strcmp(process[0], "exit") == 0)
-	{
-		ExeExit();
-		return;
-	}
-	else if (strcmp(process[0], "printenv") == 0)
-	{
-		ExePrintEnv(process);
-		return;
-	}
-	else if (strcmp(process[0], "setenv") == 0)
-	{
-		ExeSetEnv(process);
-		return;
-	}
-	else if (strcmp(process[0], "source") == 0)
-	{
-		ExeSource(process);
-		return;
-	}
+	if (ExeBuiltInCommand(process) == 1) return; 
 	
 	pid_t pid = fork();
 	
@@ -230,12 +229,106 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 	}
 }
 
+int ExeBuiltInCommand(char** process)
+{
+	if (strcmp(process[0], "exit") == 0)
+	{
+		ExeExit();
+		return 1;
+	}
+	else if (strcmp(process[0], "printenv") == 0)
+	{
+		ExePrintEnv(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "setenv") == 0)
+	{
+		ExeSetEnv(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "source") == 0)
+	{
+		ExeSource(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "name") == 0)
+	{
+		ExeName(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "who") == 0)
+	{
+		ExeWho(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "yell") == 0)
+	{
+		ExeYell(process);
+		return 1;
+	}
+	else if (strcmp(process[0], "tell") == 0)
+	{
+		ExeTell(process);
+		return 1;
+	}
+
+	return 0;
+}
+
+void ExeName(char** process)
+{
+	
+}
+
+void ExeWho(char** process)
+{
+	printf("<ID>	<nickname>	<IP:port>	<Indicate me>\n");
+
+	int clientNum = GetClientNum();
+	int port = 0;
+	int* allClientfd = GetAllClientfd();
+	struct sockaddr_in clientInfo;
+	char* clientName = "";
+	char ip[20];
+
+	for (int i = 0; i < clientNum; ++i)
+	{
+		clientName = GetClientName(i);
+		clientInfo = GetClientInfo(i);	
+		inet_ntop(AF_INET, &clientInfo.sin_addr, ip, sizeof(struct sockaddr));
+		port = ntohs(GetClientInfo(i).sin_port);	
+
+		if (allClientfd[i] == GetClientfd())
+		{
+			printf("%d	%s	%s:%d	<-me\n", i, clientName,ip, port);
+		}
+		else
+		{
+			printf("%d	%s	%s:%d\n", i, clientName, ip, port);
+		}
+	}
+}
+
+void ExeYell(char** process)
+{
+
+}
+
+void ExeTell(char** process)
+{
+
+}
+
 void ExeExit(char** process)
 {
 	int clientfd = GetClientfd();	
 	int serverNum = GetServerNum();
 
-	if (clientfd > 0) close(clientfd);
+	if (clientfd > 0) 
+	{
+		FreePipeTable(&(numberPipeTable[clientfd]));
+		close(clientfd);
+	}
 
 	if (serverNum == 1) exit(EXIT_SUCCESS);
 	else if (serverNum == 2) ExeExitService();

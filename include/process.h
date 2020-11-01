@@ -10,6 +10,7 @@ struct pipeTable{
 };
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize);
+void FreePipeTable(struct pipeTable *numberPipeTable);
 
 void Execute(struct command input);
 
@@ -22,8 +23,13 @@ int  ExeProcessPipe(char** process, int pastReadFd, char* numberPipeSeparation, 
 void ExeProcessNumberPipe(char** process, int pastReadFd, struct pipeTable *numberPipeTable, int numberPipefd, char* separation, int line, int isHead);
 void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparation, int numberPipefd, char* redirection, int isHead, int isTail);
 
-void ExeExit();
+int ExeBuiltInCommand(char** process);
 
+void ExeExit();
+void ExeName(char** process);
+void ExeWho(char** process);
+void ExeYell(char** process);
+void ExeTell(char** process);
 void ExeSetEnv(char** process);
 void ExePrintEnv(char** process);
 
