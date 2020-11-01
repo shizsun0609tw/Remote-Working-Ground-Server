@@ -18,7 +18,7 @@ int serverNum = 0;
 int clientfd = 0;
 struct serviceTable clientTable = {
 	.clientMax = 60,
-	.clientNum = 0
+	.clientSize = 0
 };
 
 int ExeServer1(int port)
@@ -102,7 +102,7 @@ void ExeServer2(int port)
 
 		sockMax = sockfd;
 
-		for(int i = 0; i < clientTable.clientNum; ++i)
+		for(int i = 0; i < clientTable.clientSize; ++i)
 		{
 			FD_SET(clientTable.clientfds[i], &sockSet);
 			if (sockMax < clientTable.clientfds[i]) sockMax = clientTable.clientfds[i]; 
@@ -120,18 +120,28 @@ void ExeServer2(int port)
 				printf("-----------------------------------------------------------\n");
 				printf("                        New user login                     \n");	
 				printf("-----------------------------------------------------------\n");
-				printf("clientfd:%d\n", forClientSockfd);
 				SendLoginInfo(forClientSockfd, clientInfo);
 
-				clientTable.clientfds[clientTable.clientNum] = forClientSockfd;
-				clientTable.clientInfo[clientTable.clientNum] = clientInfo;
-				strcpy(clientTable.clientName[clientTable.clientNum], "no name");
-				clientTable.clientNum++;
+				for(int i = 0; i <= clientTable.clientSize; ++i)
+				{
+					if (clientTable.clientfds[i] == 0)
+					{
+						clientTable.clientfds[i] = forClientSockfd;
+						clientTable.clientInfo[i] = clientInfo;
+						strcpy(clientTable.clientName[i], "no name");
+			
+						if (i == clientTable.clientSize) clientTable.clientSize++;
+						
+						break;
+					}
+				}
 			}
 		}
 
-		for(int i = 0; i < clientTable.clientNum; ++i)
+		for(int i = 0; i < clientTable.clientSize; ++i)
 		{
+			if (clientTable.clientfds[i] == 0) continue;
+
 			if (FD_ISSET(clientTable.clientfds[i], &sockSet))
 			{	
 				clientfd = clientTable.clientfds[i];	
@@ -146,6 +156,9 @@ void ExeServer2(int port)
 
 				dup2(fd_err, STDERR_FILENO);
 				dup2(fd_out, STDOUT_FILENO);
+
+				close(fd_err);
+				close(fd_out);
 			}
 		}
 	}
@@ -176,21 +189,9 @@ void ExeServer2Command()
 
 void ExeExitService()
 {
-	int label = 0;
-
-	for (int i = 0; i < clientTable.clientNum; ++i)
-	{
-		if (clientTable.clientfds[i] == clientfd) label = 1;
-		
-		if (label == 1 && i + 1 < clientTable.clientNum) 
-		{
-			clientTable.clientfds[i] = clientTable.clientfds[i + 1];
-			clientTable.clientInfo[i] = clientTable.clientInfo[i + 1];
-			strcpy(clientTable.clientName[i], clientTable.clientName[i + 1]);
-		}
-	}
-
-	clientTable.clientNum--;
+	int index = GetIndexByClientfd(clientfd);
+	
+	clientTable.clientfds[index] = 0;
 }
 
 void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
@@ -211,16 +212,18 @@ void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
 	
 	send(clientfd, "% ", sizeof("% "), 0);
 
-	for(int i = 0; i < clientTable.clientNum; ++i)
+	for(int i = 0; i < clientTable.clientSize; ++i)
 	{
-		if (clientfd == clientTable.clientfds[i]) continue;
-			
+		if (clientTable.clientfds[i] == clientfd) continue;
+		if (clientTable.clientfds[i] == 0) continue;			
+
 		dup2(clientTable.clientfds[i], STDOUT_FILENO);
 		
 		printf("*** User '(no name)' entered from %s:%d ***\n", ipv4, ntohs(clientInfo.sin_port));
 	}
 
 	dup2(fd_old, STDOUT_FILENO);	
+	close(fd_old);
 }
 
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
@@ -232,7 +235,7 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
 
 int SetClientName(char* name)
 {
-	for(int i = 0; i < clientTable.clientNum; ++i)
+	for(int i = 0; i < clientTable.clientSize; ++i)
 	{
 		if (strcmp(clientTable.clientName[i], name) == 0) return 0;
 	}
@@ -251,14 +254,14 @@ int GetClientfd()
 	return clientfd;
 }
 
-int GetClientNum()
+int GetClientSize()
 {
-	return clientTable.clientNum;
+	return clientTable.clientSize;
 }
 
 int GetIndexByClientfd(int fd)
 {
-	for(int i = 0; i < clientTable.clientNum; ++i)
+	for(int i = 0; i < clientTable.clientSize; ++i)
 	{
 		if (clientTable.clientfds[i] == fd) return i;
 	}

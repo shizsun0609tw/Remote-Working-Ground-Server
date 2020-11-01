@@ -5,7 +5,7 @@
 
 struct serviceTable{
 	int clientMax;
-	int clientNum;
+	int clientSize;
 	int clientfds[60];
 	char clientName[60][30];
 	struct sockaddr_in clientInfo[60];
@@ -24,7 +24,7 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen);
 int SetClientName(char* name);
 int GetServerNum();
 int GetClientfd();
-int GetClientNum();
+int GetClientSize();
 int GetIndexByClientfd(int fd);
 int* GetAllClientfd();
 char* GetClientName(int clientNum);

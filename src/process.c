@@ -285,7 +285,7 @@ void ExeName(char** process)
 		return;
 	}
 
-	int clientNum = GetClientNum();
+	int clientSize = GetClientSize();
 	int port = 0;
 	int* allClientfd = GetAllClientfd();
 	int index = GetIndexByClientfd(GetClientfd());
@@ -295,8 +295,10 @@ void ExeName(char** process)
 	inet_ntop(AF_INET, &info.sin_addr, ip, sizeof(struct sockaddr));
 	port = ntohs(info.sin_port);
 
-	for (int i = 0; i < clientNum; ++i)
+	for (int i = 0; i < clientSize; ++i)
 	{
+		if (allClientfd[i] == 0) continue;
+
 		dup2(allClientfd[i], STDOUT_FILENO);
 		printf("*** User from %s:%d is named '%s'. ***\n", ip, port, process[1]);
 	}
@@ -308,15 +310,17 @@ void ExeWho(char** process)
 {
 	printf("<ID>	<nickname>	<IP:port>	<Indicate me>\n");
 
-	int clientNum = GetClientNum();
+	int clientSize = GetClientSize();
 	int port = 0;
 	int* allClientfd = GetAllClientfd();
 	struct sockaddr_in clientInfo;
 	char* clientName = "";
 	char ip[20];
 
-	for (int i = 0; i < clientNum; ++i)
+	for (int i = 0; i < clientSize; ++i)
 	{
+		if (allClientfd[i] == 0) continue;
+
 		clientName = GetClientName(i);
 		clientInfo = GetClientInfo(i);	
 		inet_ntop(AF_INET, &clientInfo.sin_addr, ip, sizeof(struct sockaddr));
@@ -337,12 +341,14 @@ void ExeYell(char** process)
 {
 	if (process[1] == NULL) return;
 	
-	int clientNum = GetClientNum();
+	int clientSize = GetClientSize();
 	int index = GetIndexByClientfd(GetClientfd());
 	int* allClientfd = GetAllClientfd();
 
-	for (int i = 0; i < clientNum; ++i)
+	for (int i = 0; i < clientSize; ++i)
 	{
+		if (allClientfd[i] == 0) continue;
+
 		dup2(allClientfd[i], STDOUT_FILENO);
 		printf("*** %s yelled ***: %s\n", GetClientName(index), process[1]);
 	}
@@ -352,7 +358,9 @@ void ExeYell(char** process)
 
 void ExeTell(char** process)
 {
+	if (process[1] == NULL) return;
 
+	
 }
 
 void ExeExit(char** process)
