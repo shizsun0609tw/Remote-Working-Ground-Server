@@ -324,18 +324,30 @@ void ExeWho(char** process)
 
 		if (allClientfd[i] == GetClientfd())
 		{
-			printf("%d	%s	%s:%d	<-me\n", i, clientName,ip, port);
+			printf("%d	%s	%s:%d	<-me\n", i + 1, clientName,ip, port);
 		}
 		else
 		{
-			printf("%d	%s	%s:%d\n", i, clientName, ip, port);
+			printf("%d	%s	%s:%d\n", i + 1, clientName, ip, port);
 		}
 	}
 }
 
 void ExeYell(char** process)
 {
+	if (process[1] == NULL) return;
+	
+	int clientNum = GetClientNum();
+	int index = GetIndexByClientfd(GetClientfd());
+	int* allClientfd = GetAllClientfd();
 
+	for (int i = 0; i < clientNum; ++i)
+	{
+		dup2(allClientfd[i], STDOUT_FILENO);
+		printf("*** %s yelled ***: %s\n", GetClientName(index), process[1]);
+	}
+	
+	dup2(GetClientfd(), STDOUT_FILENO);
 }
 
 void ExeTell(char** process)
