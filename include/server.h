@@ -21,9 +21,11 @@ void ExeExitService();
 void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo);
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen);
 
+int SetClientName(char* name);
 int GetServerNum();
 int GetClientfd();
 int GetClientNum();
+int GetIndexByClientfd(int fd);
 int* GetAllClientfd();
 char* GetClientName(int clientNum);
 struct sockaddr_in GetClientInfo(int clientNum);

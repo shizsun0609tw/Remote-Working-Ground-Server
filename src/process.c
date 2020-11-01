@@ -277,7 +277,31 @@ int ExeBuiltInCommand(char** process)
 
 void ExeName(char** process)
 {
-	
+	if (process[1] == NULL) return;
+
+	if (SetClientName(process[1]) == 0)
+	{
+		printf("*** User '%s' already exists. ***\n", process[1]);
+		return;
+	}
+
+	int clientNum = GetClientNum();
+	int port = 0;
+	int* allClientfd = GetAllClientfd();
+	int index = GetIndexByClientfd(GetClientfd());
+	char ip[20];
+	struct sockaddr_in info = GetClientInfo(index);
+
+	inet_ntop(AF_INET, &info.sin_addr, ip, sizeof(struct sockaddr));
+	port = ntohs(info.sin_port);
+
+	for (int i = 0; i < clientNum; ++i)
+	{
+		dup2(allClientfd[i], STDOUT_FILENO);
+		printf("*** User from %s:%d is named '%s'. ***\n", ip, port, process[1]);
+	}
+
+	dup2(GetClientfd(), STDOUT_FILENO);
 }
 
 void ExeWho(char** process)
@@ -296,7 +320,7 @@ void ExeWho(char** process)
 		clientName = GetClientName(i);
 		clientInfo = GetClientInfo(i);	
 		inet_ntop(AF_INET, &clientInfo.sin_addr, ip, sizeof(struct sockaddr));
-		port = ntohs(GetClientInfo(i).sin_port);	
+		port = ntohs(clientInfo.sin_port);	
 
 		if (allClientfd[i] == GetClientfd())
 		{

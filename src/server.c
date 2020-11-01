@@ -230,6 +230,17 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
 	recv(clientfd, inputBuffer, sizeof(char) * bufferLen, 0);
 }	
 
+int SetClientName(char* name)
+{
+	for(int i = 0; i < clientTable.clientNum; ++i)
+	{
+		if (strcmp(clientTable.clientName[i], name) == 0) return 0;
+	}
+
+	strcpy(clientTable.clientName[GetIndexByClientfd(clientfd)], name);
+	return 1;
+}
+
 int GetServerNum()
 {
 	return serverNum;
@@ -243,6 +254,15 @@ int GetClientfd()
 int GetClientNum()
 {
 	return clientTable.clientNum;
+}
+
+int GetIndexByClientfd(int fd)
+{
+	for(int i = 0; i < clientTable.clientNum; ++i)
+	{
+		if (clientTable.clientfds[i] == fd) return i;
+	}
+	return 0;
 }
 
 int* GetAllClientfd()
