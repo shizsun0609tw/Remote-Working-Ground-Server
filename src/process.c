@@ -358,9 +358,25 @@ void ExeYell(char** process)
 
 void ExeTell(char** process)
 {
-	if (process[1] == NULL) return;
+	if (process[1] == NULL || process[2] == NULL) return;
 
+	int index = atoi(process[1]) - 1;
+	int* allClientfd = GetAllClientfd();
+
+	if (allClientfd[index] == 0) 
+	{
+		printf("*** Error: user #%d does not exist yet ***\n", atoi(process[1]));
+	}
+	else
+	{
+		dup2(allClientfd[index], STDOUT_FILENO);
+
+		index = GetIndexByClientfd(GetClientfd());
 	
+		printf("*** %s told you ***: %s\n", GetClientName(index), process[2]);
+	
+		dup2(GetClientfd(), STDOUT_FILENO);
+	}
 }
 
 void ExeExit(char** process)

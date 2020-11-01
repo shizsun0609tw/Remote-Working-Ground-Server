@@ -265,7 +265,7 @@ int GetIndexByClientfd(int fd)
 	{
 		if (clientTable.clientfds[i] == fd) return i;
 	}
-	return 0;
+	return -1;
 }
 
 int* GetAllClientfd()
