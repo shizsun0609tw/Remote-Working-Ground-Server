@@ -149,76 +149,74 @@ char** UserpipeProcessing(char** process, char* command, int processNum, int *re
 	int index = GetIndexByClientfd(GetClientfd());
 	int pipe_idx = 0;
 	int* allClientfd = GetAllClientfd();
+
+	for (int i = 0; i < processNum; ++i)	
+	{
+		if (process[i] == NULL || process[i][0] != '<') continue;
+
+		pipe_idx = atoi(process[i] + 1) - 1;
+			
+		int flag = GetUserpipe(pipe_idx, readfd);
+	
+		if (flag == 1)
+		{
+			for (int client = 0; client < GetClientSize(); ++client)
+			{
+				if (allClientfd[client] == 0) continue;
+
+				dup2(allClientfd[client], STDOUT_FILENO);
+				printf("*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
+					GetClientName(index), index + 1, GetClientName(pipe_idx), pipe_idx + 1, command);
+			}
+			FreeUserpipefds(pipe_idx);
+		}
+		else if (flag == -1)
+		{
+			printf("*** Error: user #%d does not exist yet.***\n", pipe_idx + 1);
+			*userPipeIdx = -1;
+		}
+		else
+		{
+			printf("*** Error: the pipe #%d->#%d does not exist yet. ***\n", pipe_idx + 1, index + 1);
+			*userPipeIdx = -1;
+		}
+
+		process[i] = NULL;
+	}
 	
 	for (int i = 0; i < processNum; ++i)
 	{
-		if (process[i] == NULL) continue;
-		else
-		{
-			if (process[i][0] == '<')
-			{
-				pipe_idx = atoi(process[i] + 1) - 1;
+		if (process[i] == NULL || process[i][0] != '>') continue;
+		
+		pipe_idx = atoi(process[i] + 1) - 1;	
 			
-				int flag = GetUserpipe(pipe_idx, readfd);
-	
-				if (flag == 1)
-				{
-					for (int client = 0; client < GetClientSize(); ++client)
-					{
-						if (allClientfd[client] == 0) continue;
+		int flag = AddUserpipe(pipe_idx);
 
-						dup2(allClientfd[client], STDOUT_FILENO);
-						printf("*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
-							GetClientName(index), index + 1, GetClientName(pipe_idx), pipe_idx + 1, command);
-					}
-					FreeUserpipefds(pipe_idx);
-				}
-				else if (flag == -1)
-				{
-					printf("*** Error: user #%d does not exist yet.***\n", pipe_idx + 1);
-					*userPipeIdx = -1;
-				}
-				else
-				{
-					printf("*** Error: the pipe #%d->#%d does not exist yet. ***\n", pipe_idx + 1, index + 1);
-					*userPipeIdx = -1;
-				}
-
-				process[i] = NULL;
-			}	
-			else if (process[i][0] == '>')
+		if (flag == 1)
+		{
+			*userPipe = 1;
+			for (int client = 0; client < GetClientSize(); ++client)
 			{
-				pipe_idx = atoi(process[i] + 1) - 1;	
+				if (allClientfd[client] == 0) continue;
 				
-				int flag = AddUserpipe(pipe_idx);
-
-				if (flag == 1)
-				{
-					*userPipe = 1;
-					for (int client = 0; client < GetClientSize(); ++client)
-					{
-						if (allClientfd[client] == 0) continue;
-						
-						dup2(allClientfd[client], STDOUT_FILENO);
-						printf("*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
-							GetClientName(index), index + 1, command, GetClientName(pipe_idx), pipe_idx + 1);
-						*userPipeIdx = pipe_idx;
-					}
-				}
-				else if (flag == -1)
-				{
-					printf("*** Error: user #%d does not exist yet. ***\n", pipe_idx + 1);
-					*userPipeIdx = -1;
-				}
-				else
-				{
-					printf("*** Error: the pipe #%d->#%d already exists. ***\n", index + 1, pipe_idx + 1);
-					*userPipeIdx = -1;
-				}
-
-				process[i] = NULL;
+				dup2(allClientfd[client], STDOUT_FILENO);
+				printf("*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
+					GetClientName(index), index + 1, command, GetClientName(pipe_idx), pipe_idx + 1);
+				*userPipeIdx = pipe_idx;
 			}
 		}
+		else if (flag == -1)
+		{
+			printf("*** Error: user #%d does not exist yet. ***\n", pipe_idx + 1);
+			*userPipeIdx = -1;
+		}
+		else
+		{
+			printf("*** Error: the pipe #%d->#%d already exists. ***\n", index + 1, pipe_idx + 1);
+			*userPipeIdx = -1;
+		}
+
+		process[i] = NULL;
 	}
 
 	dup2(GetClientfd(), STDOUT_FILENO);
@@ -532,7 +530,7 @@ void ExeSetEnv(char** process)
 {	
 	if (process[1] == NULL || process[2] == NULL) return;
 
-	SetEnv(process[1], process[2]);
+	if (GetServerNum() == 2) SetEnv(process[1], process[2]);
 
 	setenv(process[1], process[2], 1);	
 }

@@ -177,10 +177,12 @@ void PrintUserpipeOnServer()
 {
 	printf("------------------pipe list--------------------------\n");
 
+	printf("client:%d\n", GetIndexByClientfd(clientfd) + 1);
+
 	for (int i = 0; i < pipeTable.pipeNum; ++i)
 	{
-		printf("pipe_idx:%d, %d to %d, fd[0]:%d, fd[1]:%d\n",
-			i, pipeTable.inIndex[i], pipeTable.outIndex[i], pipeTable.inPipe[i], pipeTable.outPipe[i]);
+		printf("pipe_idx:%d,  %d to %d, fd[0]:%d, fd[1]:%d\n",
+			i, pipeTable.inIndex[i] + 1, pipeTable.outIndex[i] + 1, pipeTable.inPipe[i], pipeTable.outPipe[i]);
 	}
 }
 
@@ -420,7 +422,7 @@ int GetUserpipe(int pipe_idx, int *readfd)
 	{
 		if (pipeTable.inIndex[i] == pipe_idx && pipeTable.outIndex[i] == GetIndexByClientfd(clientfd))
 		{
-			close(pipeTable.outPipe[i]);
+			//close(pipeTable.outPipe[i]);
 			
 			*readfd = pipeTable.inPipe[i];
 
