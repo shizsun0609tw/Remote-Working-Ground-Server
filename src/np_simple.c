@@ -34,7 +34,7 @@ void ShellMainLoop(int port)
 							
 			input = ParseCommand(buffer);
 
-			if (input.tokenNumber != 0) Execute(input);
+			if (input.tokenNumber != 0) Execute(input, buffer);
 
 			memset(buffer, 0, bufferLen);
 		}

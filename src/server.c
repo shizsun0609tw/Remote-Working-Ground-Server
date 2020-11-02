@@ -20,6 +20,9 @@ struct serviceTable clientTable = {
 	.clientMax = 60,
 	.clientSize = 0
 };
+struct userpipeTable pipeTable = {
+	.pipeNum = 0
+};	
 
 int ExeServer1(int port)
 {
@@ -129,9 +132,9 @@ void ExeServer2(int port)
 						clientTable.clientfds[i] = forClientSockfd;
 						clientTable.clientInfo[i] = clientInfo;
 						strcpy(clientTable.clientName[i], "no name");
-			
-						if (i == clientTable.clientSize) clientTable.clientSize++;
 						
+						if (i == clientTable.clientSize) clientTable.clientSize++;
+							
 						break;
 					}
 				}
@@ -161,6 +164,19 @@ void ExeServer2(int port)
 				close(fd_out);
 			}
 		}
+
+		PrintUserpipeOnServer();
+	}
+}
+
+void PrintUserpipeOnServer()
+{
+	printf("------------------pipe list--------------------------\n");
+
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		printf("pipe_idx:%d, %d to %d, fd[0]:%d, fd[1]:%d\n",
+			i, pipeTable.inIndex[i], pipeTable.outIndex[i], pipeTable.inPipe[i], pipeTable.outPipe[i]);
 	}
 }
 
@@ -175,9 +191,15 @@ void ExeServer2Command()
 	{
 		recv(clientfd, buffer, sizeof(char) * bufferLen, 0);
 
+		char tempBuffer[16000] = "";
+		
+		buffer[strlen(buffer) - 2] = '\0';
+		
+		strcpy(tempBuffer, buffer);
+
 		input = ParseCommand(buffer);
 	
-		if (input.tokenNumber != 0) Execute(input);
+		if (input.tokenNumber != 0) Execute(input, tempBuffer);
 
 		send(clientfd, "% ", sizeof("% "), 0);
 
@@ -192,6 +214,20 @@ void ExeExitService()
 	int index = GetIndexByClientfd(clientfd);
 	
 	clientTable.clientfds[index] = 0;
+
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == index || pipeTable.outIndex[i] == index)
+		{
+			if (pipeTable.inPipe[i] != 0) close(pipeTable.inPipe[i]);
+			if (pipeTable.outPipe[i] != 0) close(pipeTable.outPipe[i]);
+			
+			pipeTable.inPipe[i] = 0;
+			pipeTable.outPipe[i] = 0;
+			pipeTable.inIndex[i] = 0;
+			pipeTable.outIndex[i] = 0;
+		}
+	}
 }
 
 void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
@@ -232,6 +268,22 @@ void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
 
 	recv(clientfd, inputBuffer, sizeof(char) * bufferLen, 0);
 }	
+
+void FreeUserpipefds(int pipe_idx)
+{
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == pipe_idx && pipeTable.outIndex[i] == GetIndexByClientfd(clientfd))
+		{	
+			pipeTable.inPipe[i] = 0;
+			pipeTable.outPipe[i] = 0;
+			pipeTable.inIndex[i] = 0;
+			pipeTable.outIndex[i] = 0;
+
+			return;
+		}
+	}
+}
 
 int SetClientName(char* name)
 {
@@ -276,6 +328,81 @@ int* GetAllClientfd()
 char* GetClientName(int clientNum)
 {
 	return clientTable.clientName[clientNum];
+}
+
+int* GetUserpipefds(int pipe_idx)
+{
+	int *pipefd = (int*)malloc(sizeof(int) * 2);
+
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == GetIndexByClientfd(clientfd) && pipeTable.outIndex[i] == pipe_idx)
+		{
+			pipefd[0] = pipeTable.inPipe[i];
+			pipefd[1] = pipeTable.outPipe[i];
+
+			return pipefd;
+		}
+	}
+
+	return pipefd;
+}
+
+int GetUserpipe(int pipe_idx, int *readfd)
+{
+	if (clientTable.clientfds[pipe_idx] == 0) return -1;
+
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == pipe_idx && pipeTable.outIndex[i] == GetIndexByClientfd(clientfd))
+		{
+			close(pipeTable.outPipe[i]);
+			
+			*readfd = pipeTable.inPipe[i];
+
+			return 1;
+		}
+	}
+
+	return 0;	
+}
+
+int AddUserpipe(int pipe_idx)
+{
+	if (clientTable.clientfds[pipe_idx] == 0) return -1;
+
+	for (int i = 0; i < pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == GetIndexByClientfd(clientfd) && pipeTable.outIndex[i] == pipe_idx) return 0;
+	}
+	
+	int pipefds[2];
+
+	if (pipe(pipefds) == -1)
+	{
+		printf("pipe error\n");
+	}		
+	
+	for (int i = 0; i <= pipeTable.pipeNum; ++i)
+	{
+		if (pipeTable.inIndex[i] == 0 && pipeTable.outIndex[i] == 0)
+		{
+			pipeTable.inIndex[i] = GetIndexByClientfd(clientfd);
+			pipeTable.outIndex[i] = pipe_idx;
+			pipeTable.inPipe[i] = pipefds[0];
+			pipeTable.outPipe[i] = pipefds[1];
+
+			if (i == pipeTable.pipeNum)
+			{
+				pipeTable.pipeNum++;
+				break;
+			}
+		
+			break;
+		}
+	}	
+
+	return 1;	
 }
 
 struct sockaddr_in GetClientInfo(int clientNum)

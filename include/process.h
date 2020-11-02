@@ -12,15 +12,17 @@ struct pipeTable{
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize);
 void FreePipeTable(struct pipeTable *numberPipeTable);
 
-void Execute(struct command input);
+void Execute(struct command input, char* buffer);
 
-char** CommandProcessing(struct command *input, char** oSeparation, char** oRedirection, int *oNumberPipe);
+char** CommandProcessing(struct command *input, char** oSeparation, char** oRedirection, int *oNumberPipe, int *processNum);
+char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx, int *userPipe);
 
 void AddNumberPipe(struct pipeTable *numberPipeTable, int fd, int number);
 void UpdateNumberPipe(struct pipeTable *numberPipeTable, int *ofds);
 
 int  ExeProcessPipe(char** process, int pastReadFd, char* numberPipeSeparation, int numberPipefd, int isHead);
 void ExeProcessNumberPipe(char** process, int pastReadFd, struct pipeTable *numberPipeTable, int numberPipefd, char* separation, int line, int isHead);
+void ExeProcessUserPipe(char** process, int pastReadFd, int numberPipefd, int userPipeIdx, int isHead);
 void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparation, int numberPipefd, char* redirection, int isHead, int isTail);
 
 int ExeBuiltInCommand(char** process);

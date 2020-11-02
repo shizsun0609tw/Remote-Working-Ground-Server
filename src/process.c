@@ -13,6 +13,7 @@
 #include "process.h"
 
 struct pipeTable numberPipeTable[60];
+int isUserPipe = 0;
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
 {
@@ -41,31 +42,42 @@ void FreePipeTable(struct pipeTable *numberPipeTable)
 	numberPipeTable->tableSize = 0;
 }
 
-void Execute(struct command input)
+void Execute(struct command input, char* buffer)
 {
 	char** process1 = NULL;
 	char* redirection = NULL;
 	char* separation = (char*)malloc(sizeof(char));
 	int clientfd = GetClientfd();
+	int processNum = 0;
 	int numberPipe = 0;
+	int userPipe = 0;
+	int userPipeIdx = 0;
 	int numberPipefd = 0;
 	int pastReadFd = 0;
 	int isHead = 1;
+
+	isUserPipe = 0;
 
 	if (numberPipeTable[clientfd].tableSize == 0)
 	{
 		InitPipeTable(&(numberPipeTable[clientfd]), 1001);
 	}
 
-	process1 = CommandProcessing(&input, &separation, &redirection, &numberPipe);
+	process1 = CommandProcessing(&input, &separation, &redirection, &numberPipe, &processNum);
+	process1 = UserpipeProcessing(process1, buffer, processNum, &numberPipefd, &userPipeIdx, &userPipe);	
+	
+	if (userPipeIdx == -1) return;
 
 	UpdateNumberPipe(&(numberPipeTable[clientfd]), &numberPipefd);
 	
 	while(input.currentCommandNumber != input.tokenNumber)
 	{
-		char** process2 = CommandProcessing(&input, &separation, &redirection, &numberPipe);	
-		
-		if (strcmp(separation, "|") == 0) 
+		char** process2 = CommandProcessing(&input, &separation, &redirection, &numberPipe, &processNum);			
+		process2 = UserpipeProcessing(process2, buffer, processNum, &pastReadFd, &userPipeIdx, &userPipe);
+
+		if (userPipeIdx == -1) return;
+
+		if (strcmp(separation, "|") == 0 || userPipe == 1) 
 		{
 			pastReadFd = ExeProcessPipe(process1, pastReadFd, NULL, numberPipefd, isHead);
 			numberPipefd = 0;
@@ -75,8 +87,12 @@ void Execute(struct command input)
 		free(process1);
 		process1 = process2;
 	}
-		
-	if (numberPipe > 0)
+	
+	if (userPipe == 1)
+	{
+		ExeProcessUserPipe(process1, pastReadFd, numberPipefd, userPipeIdx, isHead);
+	}
+	else if (numberPipe > 0)
 	{	
 		ExeProcessNumberPipe(process1, pastReadFd, &(numberPipeTable[clientfd]), numberPipefd, separation, numberPipe, isHead);
 	}
@@ -91,7 +107,7 @@ void Execute(struct command input)
 	free(process1);
 }
 
-char** CommandProcessing(struct command *input, char** oSeparation, char** oRedirection, int *oNumberPipe)
+char** CommandProcessing(struct command *input, char** oSeparation, char** oRedirection, int *oNumberPipe, int *processNum)
 {
 	char** process = (char**)malloc(sizeof(char*) * (input->tokenNumber + 1));
 
@@ -106,10 +122,11 @@ char** CommandProcessing(struct command *input, char** oSeparation, char** oRedi
 			
 			process[count] = NULL;
 			++input->currentCommandNumber;		
-	
+			*processNum = count;	
+
 			break;
 		}
-		else if(strcmp(argTemp, ">") == 0)
+		else if (strcmp(argTemp, ">") == 0)
 		{
 			++input->currentCommandNumber;
 			*oRedirection = input->token[input->currentCommandNumber];
@@ -118,10 +135,93 @@ char** CommandProcessing(struct command *input, char** oSeparation, char** oRedi
 		{	
 			process[count] = argTemp;
 			process[count + 1] = NULL;
+			*processNum = count + 1;
 		}
 	}
 
 	return process;
+}
+
+char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx, int *userPipe)
+{
+	int index = GetIndexByClientfd(GetClientfd());
+	int pipe_idx = 0;
+	int* allClientfd = GetAllClientfd();
+	
+	for (int i = 0; i < processNum; ++i)
+	{
+		if (process[i] == NULL) continue;
+		else
+		{
+			if (process[i][0] == '<')
+			{
+				pipe_idx = atoi(process[i] + 1) - 1;
+			
+				int flag = GetUserpipe(pipe_idx, readfd);
+	
+				if (flag == 1)
+				{
+					for (int client = 0; client < GetClientSize(); ++client)
+					{
+						if (allClientfd[client] == 0) continue;
+
+						dup2(allClientfd[client], STDOUT_FILENO);
+						printf("*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
+							GetClientName(pipe_idx), pipe_idx + 1, GetClientName(index), index + 1, command);
+					}
+					FreeUserpipefds(pipe_idx);
+				}
+				else if (flag == -1)
+				{
+					printf("*** Error: user #%d does not exit yet.***\n", pipe_idx + 1);
+					*userPipeIdx = -1;
+				}
+				else
+				{
+					printf("*** Error: the pipe #%d->#%d does not exist yet. ***\n", pipe_idx + 1, index + 1);
+					*userPipeIdx = -1;
+				}
+
+				process[i] = NULL;
+			}	
+			else if (process[i][0] == '>')
+			{
+				pipe_idx = atoi(process[i] + 1) - 1;	
+				
+				int flag = AddUserpipe(pipe_idx);
+
+				if (flag == 1)
+				{
+					*userPipe = 1;
+					for (int client = 0; client < GetClientSize(); ++client)
+					{
+						if (allClientfd[client] == 0) continue;
+						
+						dup2(allClientfd[client], STDOUT_FILENO);
+						printf("*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
+							GetClientName(index), index + 1, command, GetClientName(pipe_idx), pipe_idx + 1);
+						*userPipeIdx = pipe_idx;
+					}
+				}
+				else if (flag == -1)
+				{
+					printf("*** Error: user #%d does not exit yet. ***\n", pipe_idx + 1);
+					*userPipeIdx = -1;
+				}
+				else
+				{
+					printf("*** Error: the pipe #%d->#%d already exists. ***\n", index + 1, pipe_idx + 1);
+					*userPipeIdx = -1;
+				}
+
+				process[i] = NULL;
+			}
+		}
+	}
+
+	dup2(GetClientfd(), STDOUT_FILENO);
+
+	return process;			
 }
 
 void UpdateNumberPipe(struct pipeTable *numberPipeTable, int* ofd)
@@ -164,6 +264,13 @@ int ExeProcessPipe(char** process, int pastReadFd, char* numberPipeSeparation, i
 	return readFd;	
 }
 
+void ExeProcessUserPipe(char** process, int pastReadFd, int numberPipefd, int userPipeIdx, int isHead)
+{
+	isUserPipe = 1;
+
+	ExeProcess(process, GetUserpipefds(userPipeIdx), pastReadFd, NULL, numberPipefd, NULL, isHead, 0); 
+}
+
 void ExeProcessNumberPipe(char** process, int pastReadFd, struct pipeTable *numberPipeTable, int numberPipefd, char* separation, int line, int isHead)
 {
 	int* pipefds = (int*)malloc(sizeof(int) * 2);
@@ -197,7 +304,7 @@ void ExeSource(char** process)
 
 	while(line_size > 0)
 	{
-		Execute(ParseCommand(buffer));
+		Execute(ParseCommand(buffer), buffer);
 		line_size = getline(&buffer, &buffer_size, fp);
 	}	
 }
@@ -216,8 +323,7 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 
 	switch(pid)
 	{
-		case -1:
-			
+		case -1:	
 			printf("fork error\n");
 			break;
 		case 0:
@@ -416,7 +522,7 @@ void ExeChild(char** process, int *pipefds, int infd, char* numberPipeSeparation
 {
 	int isPipe = (isHead && isTail ? 0 : 1);
 	int isRedirection = (redirection != NULL ? 1 : 0);
-		
+			
 	if (numberPipefd > 0) ExeNumberPipe(numberPipefd);
 	
 	if (isRedirection == 1) ExeRedirection(pipefds, infd, redirection);
@@ -433,8 +539,8 @@ void ExeParent(char** process, pid_t pid, int *pipefds, int infd, int isNumberPi
 	if (numberPipefd > 0) close(numberPipefd);
 	if (pipefds != NULL && isNumberPipe == 0) close(pipefds[1]);
 	if (infd > 0) close(infd);
-
-	if (isTail == 0) return;
+	
+	if (isTail == 0 && isUserPipe == 0) return;
 	else ExeWait(pid);
 }
 
@@ -484,10 +590,11 @@ void ExeNumberPipe(int numberPipefd)
 }
 
 void ExePipeHead(int *pipefds, char* numberPipeSeparation, int infd)
-{	
+{
 	close(pipefds[0]);
-	dup2(pipefds[1], STDOUT_FILENO);
 	
+	dup2(pipefds[1], STDOUT_FILENO);
+
 	if (numberPipeSeparation != NULL && numberPipeSeparation[0] == '!') 
 	{
 		dup2(pipefds[1], STDERR_FILENO);
@@ -499,10 +606,15 @@ void ExePipeTail(int *pipefds, int infd)
 {
 	if (pipefds != NULL)
 	{
-		if (pipefds[0] != 0) close(pipefds[0]);
-		if (pipefds[1] != 0) close(pipefds[1]);
+		if (pipefds[0] != 0) 
+		{
+			close(pipefds[0]);
+		}
+		if (pipefds[1] != 0)
+		{
+			close(pipefds[1]);
+		}
 	}
-
 	dup2(infd, STDIN_FILENO);
 	close(infd);
 }
@@ -528,7 +640,6 @@ void ExeWait(pid_t pid)
 	while(1)
 	{
 		waitPID = waitpid(pid, &status, WNOHANG);
-
 		if (waitPID == pid) break;
 	}
 }
