@@ -131,7 +131,7 @@ void ExeServer2(int port)
 					{
 						clientTable.clientfds[i] = forClientSockfd;
 						clientTable.clientInfo[i] = clientInfo;
-						strcpy(clientTable.clientName[i], "no name");
+						strcpy(clientTable.clientName[i], "(no name)");
 						
 						if (i == clientTable.clientSize) clientTable.clientSize++;
 							
@@ -148,6 +148,8 @@ void ExeServer2(int port)
 			if (FD_ISSET(clientTable.clientfds[i], &sockSet))
 			{	
 				clientfd = clientTable.clientfds[i];	
+
+				SetClientEnv();
 	
 				int fd_err = dup(STDERR_FILENO);
 				int fd_out = dup(STDOUT_FILENO);
@@ -159,6 +161,8 @@ void ExeServer2(int port)
 
 				dup2(fd_err, STDERR_FILENO);
 				dup2(fd_out, STDOUT_FILENO);
+
+				CleanClientEnv();
 
 				close(fd_err);
 				close(fd_out);
@@ -193,15 +197,15 @@ void ExeServer2Command()
 
 		char tempBuffer[16000] = "";
 		
-		buffer[strlen(buffer) - 2] = '\0';
-		
-		strcpy(tempBuffer, buffer);
+		strtok(buffer, "\n");
+
+		strcat(tempBuffer, buffer);
 
 		input = ParseCommand(buffer);
 	
 		if (input.tokenNumber != 0) Execute(input, tempBuffer);
 
-		send(clientfd, "% ", sizeof("% "), 0);
+		send(clientfd, "% ", strlen("% "), 0);
 
 		memset(buffer, 0, bufferLen);
 	}
@@ -212,8 +216,11 @@ void ExeServer2Command()
 void ExeExitService()
 {
 	int index = GetIndexByClientfd(clientfd);
+
+	CleanClientEnv();
 	
 	clientTable.clientfds[index] = 0;
+	clientTable.clientEnv[index].envNum = 0;
 
 	for (int i = 0; i < pipeTable.pipeNum; ++i)
 	{
@@ -228,6 +235,15 @@ void ExeExitService()
 			pipeTable.outIndex[i] = 0;
 		}
 	}
+
+	for (int i = 0; i < clientTable.clientSize; ++i)
+	{
+		if (clientTable.clientfds[i] != 0)
+		{
+			dup2(clientTable.clientfds[i], STDOUT_FILENO);
+			printf("*** User '%s' left. ***\n", clientTable.clientName[index]);
+		}
+	}
 }
 
 void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
@@ -240,13 +256,13 @@ void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
 
 	dup2(clientfd, STDOUT_FILENO);
 
-	printf("**************************************\n"
-	       "** Welcom to the information server **\n" 
-	       "**************************************\n");
+	printf("****************************************\n"
+	       "** Welcome to the information server. **\n" 
+	       "****************************************\n");
 
-	printf("*** User '(no name)' entered from %s:%d ***\n", ipv4, ntohs(clientInfo.sin_port));
+	printf("*** User '(no name)' entered from %s:%d. ***\n", ipv4, ntohs(clientInfo.sin_port));
 	
-	send(clientfd, "% ", sizeof("% "), 0);
+	send(clientfd, "% ", strlen("% "), 0);
 
 	for(int i = 0; i < clientTable.clientSize; ++i)
 	{
@@ -255,7 +271,7 @@ void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
 
 		dup2(clientTable.clientfds[i], STDOUT_FILENO);
 		
-		printf("*** User '(no name)' entered from %s:%d ***\n", ipv4, ntohs(clientInfo.sin_port));
+		printf("*** User '(no name)' entered from %s:%d. ***\n", ipv4, ntohs(clientInfo.sin_port));
 	}
 
 	dup2(fd_old, STDOUT_FILENO);	
@@ -264,7 +280,7 @@ void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo)
 
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen)
 {
-	send(clientfd, "% ", sizeof("% "), 0);
+	send(clientfd, "% ", strlen("% "), 0);
 
 	recv(clientfd, inputBuffer, sizeof(char) * bufferLen, 0);
 }	
@@ -296,6 +312,53 @@ int SetClientName(char* name)
 	return 1;
 }
 
+void SetClientEnv()
+{
+	int index = GetIndexByClientfd(clientfd);
+
+	if (index < 0) return;
+
+	for (int i = 0; i < clientTable.clientEnv[index].envNum; ++i)
+	{
+		char* env;
+		char buffer[1000] = "";
+	
+		strcpy(buffer, clientTable.clientEnv[index].envValue[i]);
+		env = getenv(clientTable.clientEnv[index].envName[i]);
+		strcpy(clientTable.clientEnv[index].envValue[i], env);
+		setenv(clientTable.clientEnv[index].envName[i], buffer, 1);
+	}
+}
+
+void CleanClientEnv()
+{
+	SetClientEnv();
+}
+
+void SetEnv(char* envName, char* envValue)
+{
+	int index = GetIndexByClientfd(clientfd);
+	int label = 0;
+
+	for (int i = 0; i < clientTable.clientEnv[index].envNum; ++i)
+	{
+		if (strcmp(clientTable.clientEnv[index].envName[i], envName) == 0)	
+		{
+			label = 1;		
+		}
+	}
+
+	if (label == 0)
+	{
+		char* env;
+		
+		strcpy(clientTable.clientEnv[index].envName[clientTable.clientEnv[index].envNum], envName);
+		env = getenv(envName);
+		strcpy(clientTable.clientEnv[index].envValue[clientTable.clientEnv[index].envNum], env);
+		clientTable.clientEnv[index].envNum++;
+	}
+}
+
 int GetServerNum()
 {
 	return serverNum;
@@ -317,6 +380,7 @@ int GetIndexByClientfd(int fd)
 	{
 		if (clientTable.clientfds[i] == fd) return i;
 	}
+
 	return -1;
 }
 

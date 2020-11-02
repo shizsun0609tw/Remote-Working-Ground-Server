@@ -14,6 +14,7 @@
 
 struct pipeTable numberPipeTable[60];
 int isUserPipe = 0;
+char command[16000] = "";
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
 {
@@ -57,6 +58,7 @@ void Execute(struct command input, char* buffer)
 	int isHead = 1;
 
 	isUserPipe = 0;
+	strcpy(command, buffer);
 
 	if (numberPipeTable[clientfd].tableSize == 0)
 	{
@@ -167,13 +169,13 @@ char** UserpipeProcessing(char** process, char* command, int processNum, int *re
 
 						dup2(allClientfd[client], STDOUT_FILENO);
 						printf("*** %s (#%d) just received from %s (#%d) by '%s' ***\n", 
-							GetClientName(pipe_idx), pipe_idx + 1, GetClientName(index), index + 1, command);
+							GetClientName(index), index + 1, GetClientName(pipe_idx), pipe_idx + 1, command);
 					}
 					FreeUserpipefds(pipe_idx);
 				}
 				else if (flag == -1)
 				{
-					printf("*** Error: user #%d does not exit yet.***\n", pipe_idx + 1);
+					printf("*** Error: user #%d does not exist yet.***\n", pipe_idx + 1);
 					*userPipeIdx = -1;
 				}
 				else
@@ -205,7 +207,7 @@ char** UserpipeProcessing(char** process, char* command, int processNum, int *re
 				}
 				else if (flag == -1)
 				{
-					printf("*** Error: user #%d does not exit yet. ***\n", pipe_idx + 1);
+					printf("*** Error: user #%d does not exist yet. ***\n", pipe_idx + 1);
 					*userPipeIdx = -1;
 				}
 				else
@@ -414,7 +416,7 @@ void ExeName(char** process)
 
 void ExeWho(char** process)
 {
-	printf("<ID>	<nickname>	<IP:port>	<Indicate me>\n");
+	printf("<ID>	<nickname>	<IP:port>	<indicate me>\n");
 
 	int clientSize = GetClientSize();
 	int port = 0;
@@ -449,14 +451,21 @@ void ExeYell(char** process)
 	
 	int clientSize = GetClientSize();
 	int index = GetIndexByClientfd(GetClientfd());
+	int len = strspn(command, "yell");
 	int* allClientfd = GetAllClientfd();
+
+	for (int i = len; i < strlen(command); ++i)
+	{
+		if (command[i] != ' ') break;
+		len = i + 1;
+	}
 
 	for (int i = 0; i < clientSize; ++i)
 	{
 		if (allClientfd[i] == 0) continue;
 
 		dup2(allClientfd[i], STDOUT_FILENO);
-		printf("*** %s yelled ***: %s\n", GetClientName(index), process[1]);
+		printf("*** %s yelled ***: %s\n", GetClientName(index), command + len);
 	}
 	
 	dup2(GetClientfd(), STDOUT_FILENO);
@@ -467,11 +476,30 @@ void ExeTell(char** process)
 	if (process[1] == NULL || process[2] == NULL) return;
 
 	int index = atoi(process[1]) - 1;
+	int len = strspn(command, "tell");
 	int* allClientfd = GetAllClientfd();
+	char buffer[30] = "tell";
+	char* space = " ";
+
+	for (int i = len; i < strlen(command); ++i)
+	{
+		if (command[i] != ' ') break;
+		len = i + 1;
+		strcat(buffer, space);
+	}
+
+	strcat(buffer, process[1]);
+	len = strspn(command, buffer);
+
+	for (int i = len; i < strlen(command); ++i)
+	{
+		if (command[i] != ' ') break;
+		len = i + 1;
+	}
 
 	if (allClientfd[index] == 0) 
 	{
-		printf("*** Error: user #%d does not exist yet ***\n", atoi(process[1]));
+		printf("*** Error: user #%d does not exist yet. ***\n", atoi(process[1]));
 	}
 	else
 	{
@@ -479,7 +507,7 @@ void ExeTell(char** process)
 
 		index = GetIndexByClientfd(GetClientfd());
 	
-		printf("*** %s told you ***: %s\n", GetClientName(index), process[2]);
+		printf("*** %s told you ***: %s\n", GetClientName(index), command + len);
 	
 		dup2(GetClientfd(), STDOUT_FILENO);
 	}
@@ -503,6 +531,8 @@ void ExeExit(char** process)
 void ExeSetEnv(char** process)
 {	
 	if (process[1] == NULL || process[2] == NULL) return;
+
+	SetEnv(process[1], process[2]);
 
 	setenv(process[1], process[2], 1);	
 }

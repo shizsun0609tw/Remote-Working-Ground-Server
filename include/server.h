@@ -3,11 +3,18 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+struct envPack{
+	int envNum;
+	char envName[100][1000];
+	char envValue[100][1000];
+};
+
 struct serviceTable{
 	int clientMax;
 	int clientSize;
 	int clientfds[60];
 	char clientName[60][30];
+	struct envPack clientEnv[60];
 	struct sockaddr_in clientInfo[60];
 };
 
@@ -31,7 +38,12 @@ void PrintUserpipeOnServer();
 void SendLoginInfo(int clientfd, struct sockaddr_in clientInfo);
 void WaitClientCommand(int clientfd, char* inputBuffer, int bufferLen);
 
-void FreeUserpipefds(int user_idx);
+void Userpipefds(int user_idx);
+void FreeUserpipefds(int pipe_idx);
+
+void SetClientEnv();
+void CleanClientEnv();
+void SetEnv(char* envName, char* envValue);
 
 int SetClientName(char* name);
 int GetServerNum();
