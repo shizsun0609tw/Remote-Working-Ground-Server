@@ -15,7 +15,7 @@ void FreePipeTable(struct pipeTable *numberPipeTable);
 void Execute(struct command input, char* buffer);
 
 char** CommandProcessing(struct command *input, char** oSeparation, char** oRedirection, int *oNumberPipe, int *processNum);
-char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx, int *userPipe);
+char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx);
 
 void AddNumberPipe(struct pipeTable *numberPipeTable, int fd, int number);
 void UpdateNumberPipe(struct pipeTable *numberPipeTable, int *ofds);

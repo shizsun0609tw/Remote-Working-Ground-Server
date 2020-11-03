@@ -14,6 +14,7 @@
 
 struct pipeTable numberPipeTable[60];
 int isUserPipe = 0;
+int isNumberPipe = 0;
 char command[16000] = "";
 
 void InitPipeTable(struct pipeTable *numberPipeTable, const int tableSize)
@@ -51,13 +52,13 @@ void Execute(struct command input, char* buffer)
 	int clientfd = GetClientfd();
 	int processNum = 0;
 	int numberPipe = 0;
-	int userPipe = 0;
 	int userPipeIdx = 0;
 	int numberPipefd = 0;
 	int pastReadFd = 0;
 	int isHead = 1;
 
 	isUserPipe = 0;
+	isNumberPipe = 0;
 	strcpy(command, buffer);
 
 	if (numberPipeTable[clientfd].tableSize == 0)
@@ -66,7 +67,7 @@ void Execute(struct command input, char* buffer)
 	}
 
 	process1 = CommandProcessing(&input, &separation, &redirection, &numberPipe, &processNum);
-	process1 = UserpipeProcessing(process1, buffer, processNum, &numberPipefd, &userPipeIdx, &userPipe);	
+	process1 = UserpipeProcessing(process1, buffer, processNum, &numberPipefd, &userPipeIdx);	
 	
 	if (userPipeIdx == -1) return;
 
@@ -75,11 +76,11 @@ void Execute(struct command input, char* buffer)
 	while(input.currentCommandNumber != input.tokenNumber)
 	{
 		char** process2 = CommandProcessing(&input, &separation, &redirection, &numberPipe, &processNum);			
-		process2 = UserpipeProcessing(process2, buffer, processNum, &pastReadFd, &userPipeIdx, &userPipe);
+		process2 = UserpipeProcessing(process2, buffer, processNum, &pastReadFd, &userPipeIdx);
 
 		if (userPipeIdx == -1) return;
 
-		if (strcmp(separation, "|") == 0 || userPipe == 1) 
+		if (strcmp(separation, "|") == 0 || isUserPipe == 1) 
 		{
 			pastReadFd = ExeProcessPipe(process1, pastReadFd, NULL, numberPipefd, isHead);
 			numberPipefd = 0;
@@ -90,12 +91,13 @@ void Execute(struct command input, char* buffer)
 		process1 = process2;
 	}
 	
-	if (userPipe == 1)
+	if (isUserPipe == 1)
 	{
 		ExeProcessUserPipe(process1, pastReadFd, numberPipefd, userPipeIdx, isHead);
 	}
 	else if (numberPipe > 0)
-	{	
+	{
+		isNumberPipe = 1;	
 		ExeProcessNumberPipe(process1, pastReadFd, &(numberPipeTable[clientfd]), numberPipefd, separation, numberPipe, isHead);
 	}
 	else 
@@ -144,7 +146,7 @@ char** CommandProcessing(struct command *input, char** oSeparation, char** oRedi
 	return process;
 }
 
-char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx, int *userPipe)
+char** UserpipeProcessing(char** process, char* command, int processNum, int *readfd, int *userPipeIdx)
 {
 	int index = GetIndexByClientfd(GetClientfd());
 	int pipe_idx = 0;
@@ -194,7 +196,7 @@ char** UserpipeProcessing(char** process, char* command, int processNum, int *re
 
 		if (flag == 1)
 		{
-			*userPipe = 1;
+			isUserPipe = 1;
 			for (int client = 0; client < GetClientSize(); ++client)
 			{
 				if (allClientfd[client] == 0) continue;
@@ -266,8 +268,6 @@ int ExeProcessPipe(char** process, int pastReadFd, char* numberPipeSeparation, i
 
 void ExeProcessUserPipe(char** process, int pastReadFd, int numberPipefd, int userPipeIdx, int isHead)
 {
-	isUserPipe = 1;
-
 	ExeProcess(process, GetUserpipefds(userPipeIdx), pastReadFd, NULL, numberPipefd, NULL, isHead, 0); 
 }
 
@@ -568,7 +568,7 @@ void ExeParent(char** process, pid_t pid, int *pipefds, int infd, int isNumberPi
 	if (pipefds != NULL && isNumberPipe == 0) close(pipefds[1]);
 	if (infd > 0) close(infd);
 	
-	if (isTail == 0 && isUserPipe == 0) return;
+	if (isTail == 0 && (isUserPipe == 1 || isNumberPipe == 1)) return;
 	else ExeWait(pid);
 }
 

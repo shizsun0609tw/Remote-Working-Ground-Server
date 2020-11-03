@@ -422,8 +422,6 @@ int GetUserpipe(int pipe_idx, int *readfd)
 	{
 		if (pipeTable.inIndex[i] == pipe_idx && pipeTable.outIndex[i] == GetIndexByClientfd(clientfd))
 		{
-			//close(pipeTable.outPipe[i]);
-			
 			*readfd = pipeTable.inPipe[i];
 
 			return 1;
