@@ -26,6 +26,8 @@ struct userpipeTable{
 	int outPipe[3000];
 };
 
+void RecycleProcess(int signo);
+
 // return client fd
 int ExeServer1(int port);
 void ExeServer2(int port);

@@ -2,6 +2,7 @@
 
 #include "parser.h"
 #include "process.h"
+#include "management.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +29,10 @@ int ExeServer1(int port)
 {
 	int sockfd = 0, forClientSockfd = 0;
 
-	serverNum = 1;
+	if (serverNum == 0)
+	{
+		serverNum = 1;
+	}
 
 	printf("Start server1 at port:%d\n", port);
 
@@ -59,6 +63,15 @@ int ExeServer1(int port)
 		if (pid != 0)
 		{
 			close(forClientSockfd);
+
+			int waitPID, status;
+
+			while(1)
+			{
+				waitPID = waitpid(pid, &status, WNOHANG);
+				
+				if (waitPID == pid) break;
+			}				
 		}
 		else if (pid == 0) 
 		{
@@ -199,13 +212,13 @@ void ExeServer2Command()
 
 		char tempBuffer[16000] = "";
 		
-		strtok(buffer, "\n");
+		strcpy(tempBuffer, buffer);
 
-		strcat(tempBuffer, buffer);
+		input = ParseCommand(tempBuffer);	
 
-		input = ParseCommand(buffer);
-	
-		if (input.tokenNumber != 0) Execute(input, tempBuffer);
+		buffer[strcspn(buffer, "\r\n")] = 0;
+
+		if (input.tokenNumber != 0) Execute(input, buffer);
 
 		send(clientfd, "% ", strlen("% "), 0);
 

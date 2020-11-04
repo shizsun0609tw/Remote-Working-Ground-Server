@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include "management.h"
 #include "server.h"
 #include "process.h"
 
@@ -202,6 +203,7 @@ char** UserpipeProcessing(char** process, char* command, int processNum, int *re
 				if (allClientfd[client] == 0) continue;
 				
 				dup2(allClientfd[client], STDOUT_FILENO);
+
 				printf("*** %s (#%d) just piped '%s' to %s (#%d) ***\n", 
 					GetClientName(index), index + 1, command, GetClientName(pipe_idx), pipe_idx + 1);
 				*userPipeIdx = pipe_idx;
@@ -314,8 +316,8 @@ void ExeProcess(char** process, int *pipefds, int infd, char* numberPipeSeparati
 	if (ExeBuiltInCommand(process) == 1) return; 
 	
 	pid_t pid = fork();
-	
-	if (pid == -1) 
+
+	while (pid == -1) 
 	{
 		ExeWait(pid);
 		pid = fork();
@@ -564,11 +566,13 @@ void ExeChild(char** process, int *pipefds, int infd, char* numberPipeSeparation
 
 void ExeParent(char** process, pid_t pid, int *pipefds, int infd, int isNumberPipe, int numberPipefd, int isTail)
 {
+	AddToPidPool(pid);
+
 	if (numberPipefd > 0) close(numberPipefd);
 	if (pipefds != NULL && isNumberPipe == 0) close(pipefds[1]);
 	if (infd > 0) close(infd);
 	
-	if (isTail == 0 && (isUserPipe == 1 || isNumberPipe == 1)) return;
+	if (isTail == 0 || isUserPipe == 1 || isNumberPipe == 1) return;
 	else ExeWait(pid);
 }
 
@@ -664,11 +668,26 @@ void ExeWait(pid_t pid)
 {
 	int status;
 	int waitPID;
-	
+
 	while(1)
 	{
-		waitPID = waitpid(pid, &status, WNOHANG);
-		if (waitPID == pid) break;
+		int label = 0;
+
+		for (int i = 0; i < GetPidPoolSize(); ++i)
+		{
+			waitPID = waitpid(GetPid(i), &status, WNOHANG);
+
+			if (waitPID == GetPid(i))
+			{
+				ClearPid(waitPID);
+			}
+
+			if (waitPID == pid) return;
+
+			if (pid == GetPid(i)) label = 1;
+		}
+
+		if (label == 0) return;
 	}
 }
 
